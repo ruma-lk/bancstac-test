@@ -1,103 +1,134 @@
-import Image from "next/image";
+'use client'
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+
+type PaycenterMessage = {
+  source: 'paycenter';
+  status: number;
+  clientRef: string;
+  reqid: string;
+  data: any;
+};
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const [iframeUrl, setIframeUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [paymentResult, setPaymentResult] = useState<PaycenterMessage | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const bridgeReturnUrl = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    return `${window.location.origin}/api/paycenter/return?bridge=1`;
+  }, []);
+
+  // Listen for return bridge → save in state
+  useEffect(() => {
+    function onMessage(event: MessageEvent) {
+      if (typeof window === 'undefined') return;
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.source !== 'paycenter') return;
+      setPaymentResult(event.data as PaycenterMessage); // <-- save first
+      setIframeUrl(null); // close overlay
+    }
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
+
+  // After state updated, alert it
+  useEffect(() => {
+    if (!paymentResult) return;
+    alert(
+      `Payment result:
+status=${paymentResult.status}
+clientRef=${paymentResult.clientRef}
+reqid=${paymentResult.reqid}
+payload=${JSON.stringify(paymentResult.data, null, 2)}`
+    );
+  }, [paymentResult]);
+
+  async function sendInitRequest() {
+    setLoading(true);
+    try {
+      const payload = {
+        version: '1.5',
+        msgId: crypto.randomUUID(),
+        operation: 'PAYMENT_INIT',
+        requestDate: new Date().toISOString(),
+        validateOnly: false,
+        requestData: {
+          clientId: '14007313',
+          transactionType: 'PURCHASE',
+          transactionAmount: {
+            totalAmount: 0,
+            paymentAmount: 200,
+            serviceFeeAmount: 0,
+            currency: 'LKR',
+          },
+          redirect: {
+            returnUrl: bridgeReturnUrl,   // bridge posts JSON to parent
+            cancelUrl: bridgeReturnUrl,   // optional
+            returnMethod: 'GET',
+          },
+          clientRef: `ORDER-${crypto.randomUUID()}`,
+          comment: `Test ${new Date().toISOString()}`,
+          tokenize: false,
+          useReliability: true,
+          extraData: { st_id: '123456', batch_id: '102348748', group: '1231458' },
+        },
+      };
+
+      const res = await fetch('/api/paycenter', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const text = await res.text();
+      let data: any;
+      try { data = JSON.parse(text); } catch { data = { raw: text }; }
+
+      const url =
+        data?.responseData?.paymentPageUrl ||
+        data?.paymentPageUrl ||
+        data?.redirectUrl;
+
+      if (!url) {
+        alert('No payment page URL received.');
+        return;
+      }
+      setIframeUrl(url);
+    } catch (e: any) {
+      console.error(e);
+      alert(`Init failed: ${e?.message || 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <main style={{ minHeight: '100vh', padding: 20, display: 'flex', flexDirection: 'column', gap: 16, background: '#f9f9f9', color: '#333', fontFamily: 'Arial, sans-serif' }}>
+      <h1>Paycenter API Test (Save then Alert)</h1>
+
+      <button onClick={sendInitRequest} disabled={loading} style={{ alignSelf: 'flex-start', padding: '10px 20px', fontSize: 16 }}>
+        {loading ? 'Sending…' : 'Send Init Request'}
+      </button>
+
+      {paymentResult && (
+        <pre style={{ background: '#fff', padding: 12, borderRadius: 8, maxWidth: 900, overflow: 'auto' }}>
+          {JSON.stringify(paymentResult, null, 2)}
+        </pre>
+      )}
+
+      {iframeUrl && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+          <div style={{ position: 'relative', width: '90%', height: '90%' }}>
+            <button onClick={() => setIframeUrl(null)} style={{ position: 'absolute', top: 10, right: 10, background: '#fff', border: 'none', fontSize: 24, borderRadius: '50%', padding: '4px 10px', zIndex: 10000 }}>
+              &times;
+            </button>
+            <iframe ref={iframeRef} src={iframeUrl} style={{ width: '100%', height: '100%', border: 'none', background: '#fff' }} />
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      )}
+    </main>
   );
 }
