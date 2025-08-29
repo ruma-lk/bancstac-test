@@ -11,6 +11,8 @@ It includes HMAC signing, a secure server proxy, return/cancel handling, and sam
 
  * @rusoft/paycenter (helpers/utilities for Paycenter flows)
 
+ * @rusoft/dialog-esms (Dialog eSMS API SDK for Node.js)
+
 ## Features
 
 ✅ Server-side HMAC signing & verification
