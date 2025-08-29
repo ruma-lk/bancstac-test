@@ -40,7 +40,7 @@ PAYCENTER_CLIENTID=00000000\
 PAYCENTER_URL=https://paycorp-xxx.prod.aws.paycorp.lk/rest/service/proxy\
 
 # Dialog ESMS
-ESMS_USERNAME=xxxxxxx
-ESMS_PASSWORD=xxxxxxx
+ESMS_USERNAME=xxxxxxx\
+ESMS_PASSWORD=xxxxxxx\
 ESMS_SENDERID=xxxxxx
 
