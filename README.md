@@ -1,4 +1,4 @@
-# Next.js × Bancstac (Paycenter) IPG — Test Integration
+# Next.js × Bancstac (Paycenter) IPG x Dialog ESMS — Test Integration
 
 A minimal, production-ready example showing how to integrate Bancstac / Paycenter IPG in a Next.js app.
 It includes HMAC signing, a secure server proxy, return/cancel handling, and sample UI to kick off payments and display results.
