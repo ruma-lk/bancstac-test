@@ -1,5 +1,5 @@
 'use client'
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, use } from 'react';
 
 type PaycenterMessage = {
   source: 'paycenter';
@@ -15,6 +15,30 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [paymentResult, setPaymentResult] = useState<PaycenterMessage | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  async function sendSMS() {
+    const msg = await fetch('/api/sms', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        to: '94704766152',
+        message: 'Dear Customer ' + paymentResult?.data?.responseData?.clientRef + ' Payment successful. Your order will be processed shortly. Thank you for shopping with us.',
+      }),
+    });
+
+    const data = await msg.json();
+    if (data.status === 'success') {
+      alert('SMS sent :' + JSON.stringify(data));
+    } else {
+      alert('SMS sending failed: ' + JSON.stringify(data));
+    }
+  }
+
+  useEffect(() => {
+    if (paymentResult?.data?.responseData?.responseCode === '00') {
+      sendSMS();
+    }
+  }, [paymentResult]);
 
   const bridgeReturnUrl = useMemo(() => {
     if (typeof window === 'undefined') return '';
@@ -121,7 +145,7 @@ payload=${JSON.stringify(paymentResult.data, null, 2)}`
 
       {iframeUrl && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
-          <div style={{ position: 'relative', width: '90%', height: '90%' }}>
+          <div style={{ position: 'relative', width: '90%', height: '70%', boxShadow: '0 0 10px rgba(0,0,0,0.5)', borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
             <button onClick={() => setIframeUrl(null)} style={{ position: 'absolute', top: 10, right: 10, background: '#fff', border: 'none', fontSize: 24, borderRadius: '50%', padding: '4px 10px', zIndex: 10000 }}>
               &times;
             </button>
